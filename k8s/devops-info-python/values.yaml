@@ -1,0 +1,106 @@
+replicaCount: 3
+
+image:
+  repository: aezuraa/devops-info-service
+  tag: "python"
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30080
+
+containerPort: 8080
+
+env:
+  - name: HOST
+    value: "0.0.0.0"
+  - name: PORT
+    value: "8080"
+  - name: DEBUG
+    value: "False"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "200m"
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 3
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+secrets:
+  DB_USERNAME: "placeholder"
+  DB_PASSWORD: "placeholder"
+
+vault:
+  enabled: true
+  role: "devops-info"
+  secretPath: "secret/data/devops-info/config"
+  template: |
+    {{- with secret "secret/data/devops-info/config" -}}
+    DB_USERNAME={{ .Data.data.username }}
+    DB_PASSWORD={{ .Data.data.password }}
+    API_KEY={{ .Data.data.api_key }}
+    {{- end -}}
+
+config:
+  environment: "dev"
+  logLevel: "INFO"
+  appName: "devops-info-python"
+
+persistence:
+  enabled: true
+  size: 100Mi
+  storageClass: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+rollout:
+  enabled: false
+  strategy: canary
+  canary:
+    steps:
+      - setWeight: 20
+      - pause: {}
+      - setWeight: 40
+      - pause: { duration: 30s }
+      - setWeight: 60
+      - pause: { duration: 30s }
+      - setWeight: 80
+      - pause: { duration: 30s }
+      - setWeight: 100
+  blueGreen:
+    autoPromotionEnabled: false
+    autoPromotionSeconds: 0
+    scaleDownDelaySeconds: 30
+  analysis:
+    enabled: false
+    interval: 10s
+    count: 3
+    failureLimit: 1
