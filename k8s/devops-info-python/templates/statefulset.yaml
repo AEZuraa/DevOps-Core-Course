@@ -1,0 +1,85 @@
+{{- if .Values.statefulset.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "common.fullname" . }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "common.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount }}
+  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy | default "OrderedReady" }}
+  selector:
+    matchLabels:
+      {{- include "common.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: {{ .Values.statefulset.updateStrategy.type | default "RollingUpdate" }}
+    {{- if and (eq (.Values.statefulset.updateStrategy.type | default "RollingUpdate") "RollingUpdate") (hasKey .Values.statefulset.updateStrategy "partition") }}
+    rollingUpdate:
+      partition: {{ .Values.statefulset.updateStrategy.partition }}
+    {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "common.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.vault }}
+        {{- if .enabled }}
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: {{ .role | quote }}
+        vault.hashicorp.com/agent-inject-secret-config: {{ .secretPath | quote }}
+        {{- if .template }}
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- .template | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "common.fullname" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          {{- if .Values.env }}
+          env:
+            {{- include "common.envVars" . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "common.fullname" . }}-secret
+            - configMapRef:
+                name: {{ include "common.fullname" . }}-env
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "common.fullname" . }}-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "common.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        {{- if .Values.persistence.storageClass }}
+        storageClassName: {{ .Values.persistence.storageClass }}
+        {{- end }}
+{{- end }}

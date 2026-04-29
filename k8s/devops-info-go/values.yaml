@@ -1,0 +1,79 @@
+replicaCount: 3
+
+image:
+  repository: aezuraa/devops-info-service
+  tag: "go"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+containerPort: 8080
+
+env:
+  - name: HOST
+    value: "0.0.0.0"
+  - name: PORT
+    value: "8080"
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 3
+  periodSeconds: 3
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+secrets:
+  DB_USERNAME: "placeholder"
+  DB_PASSWORD: "placeholder"
+
+vault:
+  enabled: true
+  role: "devops-info"
+  secretPath: "secret/data/devops-info/config"
+  template: |
+    {{- with secret "secret/data/devops-info/config" -}}
+    DB_USERNAME={{ .Data.data.username }}
+    DB_PASSWORD={{ .Data.data.password }}
+    API_KEY={{ .Data.data.api_key }}
+    {{- end -}}
+
+config:
+  environment: "dev"
+  logLevel: "INFO"
+  appName: "devops-info-go"
+
+persistence:
+  enabled: true
+  size: 100Mi
+  storageClass: ""
+
+nameOverride: ""
+fullnameOverride: ""
