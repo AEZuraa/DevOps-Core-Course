@@ -1,0 +1,65 @@
+---
+- name: Install system packages
+  become: true
+  tags:
+    - packages
+    - common
+  block:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install common packages
+      ansible.builtin.apt:
+        name: "{{ common_packages }}"
+        state: present
+
+  rescue:
+    - name: Fix apt cache and retry
+      ansible.builtin.apt:
+        update_cache: true
+        force_apt_get: true
+      changed_when: true
+
+    - name: Retry package installation
+      ansible.builtin.apt:
+        name: "{{ common_packages }}"
+        state: present
+
+  always:
+    - name: Log package installation completion
+      ansible.builtin.copy:
+        content: "Package installation completed at {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/ansible_common_packages.log
+        mode: "0644"
+
+- name: Configure users and system
+  become: true
+  tags:
+    - users
+    - common
+  block:
+    - name: Set timezone
+      community.general.timezone:
+        name: "{{ common_timezone }}"
+
+    - name: Ensure deploy group exists
+      ansible.builtin.group:
+        name: deploy
+        state: present
+
+    - name: Create deploy user
+      ansible.builtin.user:
+        name: "{{ deploy_user | default('deploy') }}"
+        group: deploy
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+  always:
+    - name: Log user configuration completion
+      ansible.builtin.copy:
+        content: "User configuration completed at {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/ansible_common_users.log
+        mode: "0644"
