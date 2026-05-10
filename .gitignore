@@ -1,1 +1,37 @@
 test
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+crash.log
+
+# Pulumi
+pulumi/venv/
+Pulumi.*.yaml
+
+# Credentials
+*.pem
+*.key
+.env
+monitoring/.env
+
+# Ansible
+*.retry
+.vault_pass
+ansible/.vault_pass
+ansible/inventory/*.pyc
+__pycache__/
+
+# Python
+*.pyc
+*.pyo
+venv/
+
+# Local course secrets (do not commit)
+k8s/COURSE_CREDENTIALS.local.md
+
+# macOS
+.DS_Store
